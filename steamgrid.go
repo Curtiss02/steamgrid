@@ -153,6 +153,9 @@ func startApplication() {
 	}
 	var errorMessages []string
 
+	steamAppMap, err := GetSteamAppMap()
+	fmt.Printf("Found %v apps from steam applist", len(steamAppMap))
+
 	for _, user := range users {
 		fmt.Println("Loading games for " + user.Name)
 		gridDir := filepath.Join(user.Dir, "config", "grid")
@@ -174,11 +177,17 @@ func startApplication() {
 			if game.Name == "" {
 				game.Name = getGameName(game.ID)
 			}
-
 			if game.Name != "" {
 				name = game.Name
 			} else {
 				name = "unknown game with id " + game.ID
+			}
+
+			if game.AppID == "" {
+				if appID, found := steamAppMap[game.Name]; found {
+					fmt.Printf("Found Steam AppID for %s: %s \n", game.Name, appID)
+					game.AppID = appID
+				}
 			}
 			fmt.Printf("Processing %v (%v/%v)\n", name, i, len(games))
 

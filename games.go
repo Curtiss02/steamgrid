@@ -14,8 +14,10 @@ import (
 
 // Game in a steam library. May or may not be installed.
 type Game struct {
-	// Official appID or custom shortcut ID
+	// Official appID or custom shortcut ID - used for setting images in steam
 	ID string
+	//Official AppID, or try to resolve AppID for "Non Steam" games
+	AppID string
 	// Warning, may contain Unicode characters.
 	Name string
 	// Tags, including user-created category and Steam's "Favorite" tag.
@@ -53,7 +55,7 @@ func addGamesFromProfile(user User, games map[string]*Game) (err error) {
 		gameID := groups[1]
 		gameName := groups[2]
 		tags := []string{""}
-		games[gameID] = &Game{gameID, gameName, tags, "", nil, nil, "", false, 0}
+		games[gameID] = &Game{gameID, gameID, gameName, tags, "", nil, nil, "", false, 0}
 	}
 
 	return
@@ -91,7 +93,7 @@ func addUnknownGames(user User, games map[string]*Game) {
 				// If for some reason it wasn't included in the profile, create a new
 				// entry for it now. Unfortunately we don't have a name.
 				gameName := ""
-				games[gameID] = &Game{gameID, gameName, []string{tag}, "", nil, nil, "", false, 0}
+				games[gameID] = &Game{gameID, "", gameName, []string{tag}, "", nil, nil, "", false, 0}
 			}
 		}
 	}
@@ -124,8 +126,8 @@ func addNonSteamGames(user User, games map[string]*Game) {
 		target := gameGroups[3]
 		uniqueName := bytes.Join([][]byte{target, gameName}, []byte(""))
 		LegacyID := uint64(crc32.ChecksumIEEE(uniqueName)) | 0x80000000
+		game := Game{gameID, "", string(gameName), []string{}, "", nil, nil, "", true, LegacyID}
 
-		game := Game{gameID, string(gameName), []string{}, "", nil, nil, "", true, LegacyID}
 		games[gameID] = &game
 
 		tagsText := gameGroups[4]
@@ -143,7 +145,7 @@ func GetGames(user User, nonSteamOnly bool, appIDs string) map[string]*Game {
 
 	if appIDs != "" {
 		for _, appID := range strings.Split(appIDs, ",") {
-			games[appID] = &Game{appID, "", []string{}, "", nil, nil, "", false, 0}
+			games[appID] = &Game{appID, appID, "", []string{}, "", nil, nil, "", false, 0}
 		}
 		return games
 	}

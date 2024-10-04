@@ -68,6 +68,48 @@ func getGoogleImage(gameName string, artStyleExtensions []string) (string, error
 	return "", nil
 }
 
+const appListURL = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
+
+// Get a map of all steam app names to their appIds
+func GetSteamAppMap() (map[string]string, error) {
+	appIDMap := make(map[string]string)
+
+	response, err := http.Get(appListURL)
+	if err != nil {
+		return appIDMap, err
+	}
+
+	if response.StatusCode == 404 {
+		return appIDMap, nil
+	} else if response.StatusCode >= 400 {
+		return appIDMap, errors.New("failed to get steam app list : " + response.Status)
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return appIDMap, err
+	}
+	defer response.Body.Close()
+
+	//fmt.Println("Raw Response Body:", string(body))
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return appIDMap, fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	appsData := result["applist"].(map[string]interface{})["apps"].([]interface{})
+
+	for _, app := range appsData {
+		appMap := app.(map[string]interface{})
+		appID := appMap["appid"].(float64) // JSON numbers are parsed as float64
+		name := appMap["name"].(string)
+
+		appIDMap[name] = strconv.FormatFloat(appID, 'f', 0, 64)
+	}
+	return appIDMap, nil
+}
+
 // https://www.steamgriddb.com/api/v2
 type steamGridDBResponse struct {
 	Success bool
@@ -148,7 +190,7 @@ func getSteamGridDBImage(game *Game, artStyleExtensions []string, steamGridDBApi
 	// It's possible to request both dimensions in one go but that'll give us scrambled results with no indicator which result has which size.
 	for i := 0; i < 3; i += 2 {
 
-		// Try with game.ID which is probably steams appID
+		// Try with game.appID
 		var baseURL string
 		switch artStyleExtensions[1] {
 		case ".banner":
@@ -160,7 +202,7 @@ func getSteamGridDBImage(game *Game, artStyleExtensions []string, steamGridDBApi
 		case ".logo":
 			baseURL = steamGridDBBaseURL + "/logos"
 		}
-		url := baseURL + "/steam/" + game.ID + artStyleExtensions[3]
+		url := baseURL + "/steam/" + game.AppID + artStyleExtensions[3]
 
 		var jsonResponse steamGridDBResponse
 		var responseBytes []byte
@@ -359,7 +401,7 @@ const steamCdnURLFormat = `cdn.akamai.steamstatic.com/steam/apps/%v/`
 func getImageAlternatives(game *Game, artStyle string, artStyleExtensions []string, skipSteam bool, steamGridDBApiKey string, IGDBSecret string, IGDBClient string, skipGoogle bool, onlyMissingArtwork bool) (response *http.Response, from string, err error) {
 	from = "steam server"
 	if !skipSteam {
-		response, err = tryDownload(fmt.Sprintf(akamaiURLFormat+artStyleExtensions[2], game.ID))
+		response, err = tryDownload(fmt.Sprintf(akamaiURLFormat+artStyleExtensions[2], game.AppID))
 		if err == nil && response != nil {
 			if onlyMissingArtwork {
 				// Abort if image is available
@@ -368,7 +410,7 @@ func getImageAlternatives(game *Game, artStyle string, artStyleExtensions []stri
 			return
 		}
 
-		response, err = tryDownload(fmt.Sprintf(steamCdnURLFormat+artStyleExtensions[2], game.ID))
+		response, err = tryDownload(fmt.Sprintf(steamCdnURLFormat+artStyleExtensions[2], game.AppID))
 		if err == nil && response != nil {
 			if onlyMissingArtwork {
 				// Abort if image is available

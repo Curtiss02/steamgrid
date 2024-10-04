@@ -222,3 +222,5 @@ pip-log.txt
 Steam
 steamgrid*
 __debug_bin
+.vscode/launch.json
+go.sum
